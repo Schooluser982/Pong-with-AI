@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pong with Menu</title>
+  <meta charset="UTF-8">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-family: Arial;
+      user-select: none;
+    }
+    #menu { text-align: center; }
+    .btn {
+      padding: 15px 30px; margin: 10px;
+      background: white; color: black;
+      font-size: 24px; cursor: pointer;
+      border-radius: 8px;
+      display: inline-block;
+    }
+    canvas { display: none; }
+    #resultScreen { display:none; text-align:center; }
+  </style>
+</head>
+<body>
+<div id="menu">
+  <h1>PONG</h1>
+  <h3>Made By Evan W</h3>
+  <div class="btn" onclick="startGame('easy')">Easy</div>
+  <div class="btn" onclick="startGame('medium')">Medium</div>
+  <div class="btn" onclick="startGame('hard')">Hard</div>
+  <div class="btn" onclick="startGame('twoplayer')">2 Player</div>
+</div>
+
+<div id="resultScreen">
+  <h1 id="resultText"></h1>
+  <div class="btn" onclick="returnToMenu()">Return to Menu</div>
+</div>
+
+<canvas width="750" height="585" id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const grid = 15;
+const paddleHeight = grid * 5;
+const maxPaddleY = canvas.height - grid - paddleHeight;
+
+let leftScore = 0, rightScore = 0;
+let gameRunning = false;
+let timeLeft = 180; // 3 minutes
+let aiDifficulty = 1;
+let twoPlayer = false;
+
+const leftPaddle = { x: grid*2, y: canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
+const rightPaddle = { x: canvas.width - grid*3, y: canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
+const ball = { x:canvas.width/2, y:canvas.height/2, width:grid, height:grid, dx:5, dy:-5, resetting:false };
+
+function startGame(mode){
+  twoPlayer = (mode === 'twoplayer');
+
+  if(mode==='easy') aiDifficulty = 0.4;
+  if(mode==='medium') aiDifficulty = 0.7;
+  if(mode==='hard') aiDifficulty = 1;
+
+  document.getElementById('menu').style.display='none';
+  document.getElementById('resultScreen').style.display='none';
+  canvas.style.display='block';
+
+  leftScore = 0; rightScore = 0;
+  timeLeft = 180;
+  gameRunning = true;
+
+  leftPaddle.y = canvas.height/2 - paddleHeight/2;
+  rightPaddle.y = canvas.height/2 - paddleHeight/2;
+  ball.x = canvas.width/2; ball.y = canvas.height/2;
+  ball.dx = 5 * (Math.random()>0.5?1:-1);
+  ball.dy = 5 * (Math.random()>0.5?1:-1);
+
+  loop();
+  countdown();
+}
+
+function countdown(){
+  const timer = setInterval(()=>{
+    if(!gameRunning){ clearInterval(timer); return; }
+    timeLeft--;
+    if(timeLeft <= 0){ endGame(); clearInterval(timer); }
+  },1000);
+}
+
+function endGame(){
+  gameRunning = false;
+  canvas.style.display='none';
+  document.getElementById('resultScreen').style.display='block';
+  const resultText = leftScore > rightScore ? "YOU WIN" : (rightScore > leftScore ? "AI WON" : "DRAW");
+  document.getElementById('resultText').textContent = resultText;
+}
+
+function returnToMenu(){
+  document.getElementById('resultScreen').style.display='none';
+  document.getElementById('menu').style.display='block';
+}
+
+function collides(a,b){ return a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y; }
+
+function loop(){
+  if(!gameRunning){ return; }
+  requestAnimationFrame(loop);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  leftPaddle.y += leftPaddle.dy;
+  leftPaddle.y = Math.max(grid, Math.min(maxPaddleY, leftPaddle.y));
+
+  if(twoPlayer){
+  } else {
+    const aiCenter = rightPaddle.y + rightPaddle.height/2;
+    const ballCenter = ball.y + ball.height/2;
+    if(Math.abs(ballCenter - aiCenter) > 25){
+      rightPaddle.dy = (ballCenter < aiCenter ? -6 : 6) * aiDifficulty;
+    } else {
+      rightPaddle.dy = 0;
+    }
+  }
+
+  rightPaddle.y += rightPaddle.dy;
+  rightPaddle.y = Math.max(grid, Math.min(maxPaddleY, rightPaddle.y));
+
+  ctx.fillStyle='white';
+  ctx.fillRect(leftPaddle.x,leftPaddle.y,leftPaddle.width,leftPaddle.height);
+  ctx.fillRect(rightPaddle.x,rightPaddle.y,rightPaddle.width,rightPaddle.height);
+
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+
+  if(ball.y<grid) { ball.y = grid; ball.dy *= -1; }
+  if(ball.y+ball.height>canvas.height-grid) { ball.y = canvas.height-grid-ball.height; ball.dy *= -1; }
+
+  if(ball.x < 0 && !ball.resetting){ rightScore++; resetBall(); }
+  if(ball.x > canvas.width && !ball.resetting){ leftScore++; resetBall(); }
+
+  if(collides(ball,leftPaddle)){ ball.dx *= -1; ball.x = leftPaddle.x + leftPaddle.width; }
+  if(collides(ball,rightPaddle)){ ball.dx *= -1; ball.x = rightPaddle.x - ball.width; }
+
+  ctx.fillRect(ball.x,ball.y,ball.width,ball.height);
+
+  ctx.fillStyle='lightgrey';
+  ctx.fillRect(0, 0, canvas.width, grid);
+  ctx.fillRect(0, canvas.height - grid, canvas.width, grid);
+
+  for (let i = grid; i < canvas.height - grid; i += grid * 2) {
+    ctx.fillRect(canvas.width / 2 - grid / 2, i, grid, grid);
+  }
+
+  ctx.fillStyle='white';
+  ctx.font='24px Arial';
+  ctx.fillText(`TIME: ${timeLeft}`, 20, 50);
+  ctx.fillText(leftScore, canvas.width/2 - 50, 40);
+  ctx.fillText(rightScore, canvas.width/2 + 30, 40);
+}
+
+function resetBall(){
+  ball.resetting = true;
+  setTimeout(()=>{
+    ball.resetting = false;
+    ball.x=canvas.width/2;
+    ball.y=canvas.height/2;
+    ball.dx = 5 * (Math.random()>0.5?1:-1);
+    ball.dy = 5 * (Math.random()>0.5?1:-1);
+  },400);
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.which===87) leftPaddle.dy=-6;
+  if(e.which===83) leftPaddle.dy=6;
+  if(e.which===38) rightPaddle.dy=-6;
+  if(e.which===40) rightPaddle.dy=6;
+});
+
+document.addEventListener('keyup', e=>{
+  if(e.which===87 || e.which===83) leftPaddle.dy=0;
+  if(e.which===38 || e.which===40) rightPaddle.dy=0;
+});
+</script>
+</body>
+</html>
